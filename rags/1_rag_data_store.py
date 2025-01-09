@@ -1,3 +1,4 @@
+
 import os
 from langchain.text_splitter import CharacterTextSplitter
 from langchain_community.document_loaders import TextLoader
@@ -8,6 +9,7 @@ current_dir = os.path.dirname(os.path.abspath(__file__))
 file_path = os.path.join(current_dir, "documents", "lord_of_the_rings.txt")
 persistent_directory = os.path.join(current_dir, "db", "chroma_db")
 
+# Setting up file and directory paths for processing and storing vector data.
 if not os.path.exists(persistent_directory):
     print("Persistent directory doens't exist. Creating it and initiliazing vector store...")
     
@@ -18,6 +20,7 @@ if not os.path.exists(persistent_directory):
     loader = TextLoader(file_path)
     documents = loader.load()
     
+    # Splits the loaded text into smaller chunks using a character-based text splitter.
     text_splitter = CharacterTextSplitter(chunk_size=1000, chunk_overlap=50)
     docs = text_splitter.split_documents(documents)
     
@@ -28,6 +31,7 @@ if not os.path.exists(persistent_directory):
     
     print("\n--- Creating embessings ---")
     
+    # Creates embeddings for the text chunks using OpenAI's embedding model.
     embeddings = OpenAIEmbeddings(model="text-embedding-3-small")
     print("\n--- Finished creating embedding ---")
     

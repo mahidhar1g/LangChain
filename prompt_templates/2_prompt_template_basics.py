@@ -7,7 +7,8 @@ from langchain.schema.output_parser import StrOutputParser
 
 load_dotenv()
 
-llm = ChatOpenAI(temperature=0, model="gpt-4")
+# llm = ChatOpenAI(temperature=0, model="gpt-4")
+llm = ChatGroq(temperature=0, model="llama-3.1-8b-instant")
 
 prompt = """
 You are a helpful AI assistant.

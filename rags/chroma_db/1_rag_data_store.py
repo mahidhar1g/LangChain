@@ -6,6 +6,7 @@ from langchain_chroma import Chroma
 from langchain_openai import OpenAIEmbeddings
 
 current_dir = os.path.dirname(os.path.abspath(__file__))
+# parent_dir = os.path.dirname(current_dir)
 file_path = os.path.join(current_dir, "documents", "lord_of_the_rings.txt")
 persistent_directory = os.path.join(current_dir, "db", "chroma_db")
 

@@ -61,3 +61,23 @@ First, clone the repository from GitHub:
 ```bash
 git clone https://github.com/mahidhar1g/LangChain.git
 cd LangChain
+```
+
+### 2. Set Up a Virtual Environment and install requirements
+
+It is recommended to use a virtual environment to manage dependencies and avoid conflicts:
+
+```bash
+python3 -m venv venv
+source venv/bin/activate
+pip install -r requirements.txt
+```
+
+### 3. Configure Environment variables
+
+```bash
+PINECONE_API_KEY=your_pinecone_api_key
+OPENAI_API_KEY=your_openai_api_key
+FIREBASE_PROJECT_ID="your_firebase_api_key"
+GROQ_API_KEY="your_groq_api_key"
+```

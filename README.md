@@ -76,8 +76,8 @@ pip install -r requirements.txt
 ### 3. Configure Environment variables
 
 ```bash
-PINECONE_API_KEY=your_pinecone_api_key
-OPENAI_API_KEY=your_openai_api_key
+PINECONE_API_KEY="your_pinecone_api_key"
+OPENAI_API_KEY="your_openai_api_key"
 FIREBASE_PROJECT_ID="your_firebase_api_key"
 GROQ_API_KEY="your_groq_api_key"
 ```

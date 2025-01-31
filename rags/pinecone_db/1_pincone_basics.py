@@ -10,6 +10,7 @@ from dotenv import load_dotenv
 import os
 load_dotenv()
 
+
 # Load the PDF file and extract the text
 current_dir = os.path.dirname(os.path.abspath(__file__))
 pdf_path = os.path.join(current_dir, "incorrect_facts.pdf")
@@ -17,20 +18,40 @@ pdf_path = os.path.join(current_dir, "incorrect_facts.pdf")
 if not os.path.exists(pdf_path):
     raise FileNotFoundError(f"The file {pdf_path} does not exist.")
 
-text = ""
+text_per_page = []
+full_text = ""
 try:
     pdf_reader = PdfReader(pdf_path)
-    for page in pdf_reader.pages:
-        text += page.extract_text() + "\n"
+    for page_num, page in enumerate(pdf_reader.pages, start=1):
+        full_text += page.extract_text() + "\n"
+        text = page.extract_text()
+        if text:
+            text_per_page.append({"page": page_num, "text": text.strip()})
 except Exception as e:
     raise RuntimeError(f"An error occurred while reading the PDF file: {e}")
 
 
-# Split the text into chunks
+# Split the text into chunks and assign page numbers to each chunk
 chunk_size = 200
-chunk_overlap = 10
+chunk_overlap = 20
 text_splitter = CharacterTextSplitter(separator="\n", chunk_size=chunk_size, chunk_overlap=chunk_overlap, length_function=len)
-chunks = text_splitter.split_text(text)
+raw_chunks = text_splitter.split_text(full_text)
+
+
+# Assign page numbers to chunks
+chunks_with_metadata = []
+for chunk in raw_chunks:
+    start_page, end_page = None, None
+
+    for entry in text_per_page:
+        page_number, page_text = entry["page"], entry["text"]
+
+        if chunk in page_text or chunk[:50] in page_text or chunk[-50:] in page_text:
+            start_page = start_page or page_number
+            end_page = page_number
+    pages_info = f"{start_page},{end_page}" if start_page and end_page and start_page != end_page else str(start_page or "Unknown")
+
+    chunks_with_metadata.append({"text": chunk.strip(), "page": pages_info})
 
 
 # Create a Pinecone index
@@ -78,12 +99,12 @@ else:
 
 # Upsert embeddings into the Pinecone index
 if not response or upserted_flag_id not in response["vectors"] or stored_chunk_size != chunk_size:
-    for i, chunk in enumerate(chunks):
-        chunk_embedding = embeddings.embed_query(chunk)
-        index.upsert([(str(i), chunk_embedding, {"text": chunk})])
-    
+    for i, chunk in enumerate(chunks_with_metadata):
+        chunk_embedding = embeddings.embed_query(chunk["text"])
+        index.upsert([(str(i), chunk_embedding, {"text": chunk["text"], "page": chunk["page"]})])
+
     # Upsert a flag to indicate data has been upserted, including the chunk size
-    index.upsert([(upserted_flag_id, [0.1]*1536, {"text": "upserted_flag", "chunk_size": chunk_size})])
+    index.upsert([(upserted_flag_id, [0.1] * 1536, {"text": "upserted_flag", "chunk_size": chunk_size})])
     print("Finished upserting embeddings.")
 
 
@@ -102,8 +123,10 @@ while True:
     query_embedding = embeddings.embed_query(query)
     response = index.query(vector=query_embedding, top_k=3, include_metadata=True)
     
-    augmented_content = "\n\n".join([match.metadata["text"] for match in response.matches])
-    print(f"\nAugmented content: {augmented_content}")
+    matched_data = [(match.metadata["text"], match.metadata["page"]) for match in response.matches]
+    augmented_content = "\n\n".join([f"[Page {page}] {text}" for text, page in matched_data])
+    sources = ", ".join(set([page for _, page in matched_data]))
+    print(f"\nAugmented content:\n{augmented_content}")
     
     prompt_template = ChatPromptTemplate.from_messages(
         [
@@ -115,7 +138,6 @@ while True:
             ("human", "Question: {question}")
         ]
     )
-
     
     prepare_prompt_template = RunnableLambda(lambda x: prompt_template.format_prompt(context=augmented_content, question=query))
     

@@ -4,3 +4,5 @@ langchain-openai
 langchain-groq
 pinecone
 PyPDF2
+langchain_google_firestore
+langchain_chroma

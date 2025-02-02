@@ -6,3 +6,6 @@ pinecone
 PyPDF2
 langchain_google_firestore
 langchain_chroma
+faiss-cpu
+sentence-transformers
+fitz

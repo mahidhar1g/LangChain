@@ -14,7 +14,6 @@ from langchain.agents import create_react_agent, AgentExecutor, tool
 from dotenv import load_dotenv
 from langchain import hub
 import os
-from langchain_core.messages import AIMessage, HumanMessage
 
 
 load_dotenv()
@@ -143,6 +142,7 @@ def create_pinecone_index():
     index = pc.Index(index_name)
     return index
 
+
 def upsert_data_to_pinecone(documents, full_text, index):
     """
     Upsert the text chunks and their embeddings into the Pinecone index.
@@ -182,11 +182,14 @@ def upsert_data_to_pinecone(documents, full_text, index):
         print("Finished upserting embeddings.")
 
 
-# Document Retrieval Tool
 @tool
 def document_retrieval_tool(query):
     """
     Retrieve information from the embedded documents based on the query.
+    
+    Additional Information on when to use this tool:
+        - This should be the primary source of information.
+        - If no relevant information is found, return an empty string or indicate that the data is unavailable.
     """
     
     current_dir = os.path.dirname(os.path.abspath(__file__))
@@ -206,43 +209,24 @@ def document_retrieval_tool(query):
     else:
         return "No relevant information found in the provided documents."
 
-# Web Search Tool
+
 @tool
 def web_search_tool(query):
     """
     Perform a web search using DuckDuckGo and return relevant information.
+    
+    When to use this tool:
+        - If the document_retrieval_tool does not find relevant information.
+        - Use this tool only when the needed information is missing from the document retrieval tool.
     """
+    
     search = DuckDuckGoSearchRun()
     return search.run(query)
         
 def main():
-    prompt_template = ChatPromptTemplate.from_messages(
-        [
-            ("system", """ You run in a loop of Thought, Action, PAUSE, Action_Response.
-                            At the end of the loop you output an Answer.
-                            
-                            Use Thought to understand the question you have been asked.
-                            Use Action to run one of the actions available to you - then return PAUSE.
-                            Action_Response will be the result of running those actions.
-                            
-                            Your goal is to output an Answer that is helpful to the user. These are the actions you can take:
-                            
-                            You are a helpful assistant that can provide information from documents and the web. Whatever the question is first try to find the answer in the documents. If you can't find the answer in the documents, then try to find the answer on the web using DuckDuckGo. However, if you find the answer in the documents, you should provide the answer from the documents only. If you can't find the answer in the documents or on the web, you should say that you couldn't find the answer.
-                            
-                            At the end of the answer you provide, include the source of the information. 
-                            - If you found the answer in a document, include the **page number** and **source**.
-                            - If you found the answer on the web, include the **website link**.
-                            
-                            Available tools: {tools}
-                            Available tool names: {tool_names}
-                        """
-            ),
-            ("user", "{input}"),
-            MessagesPlaceholder(variable_name="agent_scratchpad")
-        ]
-    )
+    prompt = hub.pull("hwchase17/react")
     tools = [document_retrieval_tool, web_search_tool]
-    agent = create_react_agent(llm, tools, prompt_template)
+    agent = create_react_agent(llm, tools, prompt)
     agent_executor = AgentExecutor(agent=agent, tools=tools, verbose=True, handle_parsing_errors=True)
     
     while True:
@@ -253,5 +237,7 @@ def main():
         response = agent_executor.invoke({"input": query})
         print(f"\nAnswer: {response}")
 
+
 if __name__ == "__main__":
     main()
+    

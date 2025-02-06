@@ -19,7 +19,7 @@ def get_system_time(format: str = "%Y-%m-%d %H:%M:%S"):
 
 llm = ChatOpenAI(model="gpt-4")
 
-query = "What is the current time in London (You are in USA, eastern time zone)? Show the time in tehe london, I don't want date."
+query = "What is the current time in London (You are in USA, eastern time zone)? Show the time in london, I don't want date."
 
 prompt_template = hub.pull("hwchase17/react")
 

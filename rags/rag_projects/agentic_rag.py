@@ -1,17 +1,23 @@
 import streamlit as st
 from langchain_openai import ChatOpenAI, OpenAIEmbeddings
 from langchain_core.output_parsers import StrOutputParser
-from langchain.chains.conversation.memory import ConversationBufferMemory
+from langchain.chains.conversation.memory import ConversationBufferWindowMemory
 from pinecone import Pinecone, ServerlessSpec
 from pinecone.core.openapi.shared.exceptions import PineconeApiException
-from langchain.prompts import ChatPromptTemplate
+from langchain.prompts import ChatPromptTemplate, MessagesPlaceholder
 from langchain_community.document_loaders import PyPDFLoader
 from langchain.text_splitter import RecursiveCharacterTextSplitter
 from langchain.schema.runnable import RunnableLambda
+from langchain_groq import ChatGroq
+from langchain_community.tools import DuckDuckGoSearchRun
+from langchain.agents import create_react_agent, AgentExecutor, tool
 from dotenv import load_dotenv
+from langchain import hub
 import os
-load_dotenv()
+from langchain_core.messages import AIMessage, HumanMessage
 
+
+load_dotenv()
 
 CHUNK_SIZE = 500
 CHUNK_OVERLAP = 20
@@ -27,6 +33,7 @@ llm = ChatOpenAI(
     model="gpt-4o",
     temperature=0
 )
+
 
 def load_pdf(folder_path):
     """
@@ -173,9 +180,15 @@ def upsert_data_to_pinecone(documents, full_text, index):
         # Upsert a flag to indicate data has been upserted, including the chunk size
         index.upsert([(upserted_flag_id, [0.1] * 1536, {"text": "upserted_flag", "chunk_size": CHUNK_SIZE})])
         print("Finished upserting embeddings.")
-        
-        
-def main():
+
+
+# Document Retrieval Tool
+@tool
+def document_retrieval_tool(query):
+    """
+    Retrieve information from the embedded documents based on the query.
+    """
+    
     current_dir = os.path.dirname(os.path.abspath(__file__))
     documents_dir = os.path.join(current_dir, "documents")
     documents, full_text = load_pdf(documents_dir)
@@ -185,35 +198,60 @@ def main():
         raise RuntimeError(f"An error occurred while creating the Pinecone index: {e}")
     
     upsert_data_to_pinecone(documents, full_text, index)
+    query_embedding = embeddings.embed_query(query)
+    response = index.query(vector=query_embedding, top_k=3, include_metadata=True)
+    matched_data = [(match.metadata["text"], match.metadata) for match in response.matches]
+    if matched_data:
+        return "\n\n".join([f"[Page {page}] {text}" for text, page in matched_data])
+    else:
+        return "No relevant information found in the provided documents."
+
+# Web Search Tool
+@tool
+def web_search_tool(query):
+    """
+    Perform a web search using DuckDuckGo and return relevant information.
+    """
+    search = DuckDuckGoSearchRun()
+    return search.run(query)
+        
+def main():
+    prompt_template = ChatPromptTemplate.from_messages(
+        [
+            ("system", """ You run in a loop of Thought, Action, PAUSE, Action_Response.
+                            At the end of the loop you output an Answer.
+                            
+                            Use Thought to understand the question you have been asked.
+                            Use Action to run one of the actions available to you - then return PAUSE.
+                            Action_Response will be the result of running those actions.
+                            
+                            Your goal is to output an Answer that is helpful to the user. These are the actions you can take:
+                            
+                            You are a helpful assistant that can provide information from documents and the web. Whatever the question is first try to find the answer in the documents. If you can't find the answer in the documents, then try to find the answer on the web using DuckDuckGo. However, if you find the answer in the documents, you should provide the answer from the documents only. If you can't find the answer in the documents or on the web, you should say that you couldn't find the answer.
+                            
+                            At the end of the answer you provide, include the source of the information. 
+                            - If you found the answer in a document, include the **page number** and **source**.
+                            - If you found the answer on the web, include the **website link**.
+                            
+                            Available tools: {tools}
+                            Available tool names: {tool_names}
+                        """
+            ),
+            ("user", "{input}"),
+            MessagesPlaceholder(variable_name="agent_scratchpad")
+        ]
+    )
+    tools = [document_retrieval_tool, web_search_tool]
+    agent = create_react_agent(llm, tools, prompt_template)
+    agent_executor = AgentExecutor(agent=agent, tools=tools, verbose=True, handle_parsing_errors=True)
     
     while True:
         query = input("Ask a question (or type exit to quit): ")
         if query.lower() == "exit":
             break
         
-        print(f"\nQuery: {query}")
-        query_embedding = embeddings.embed_query(query)
-        response = index.query(vector=query_embedding, top_k=3, include_metadata=True)
-        
-        matched_data = [(match.metadata["text"], match.metadata) for match in response.matches]
-        augmented_content = "\n\n".join([f"[Page {page}] {text}" for text, page in matched_data])
-        print(f"\nAugmented content:\n{augmented_content}")
-        
-        prompt_template = ChatPromptTemplate.from_messages(
-            [
-                ("system", "You are an AI assistant that strictly follows the provided context to answer questions. "
-                "You **must not** use any external knowledge, even if the user asks you to. "
-                "If the answer is not found in the provided context, respond with:\n"
-                "'I can only answer based on the provided context, and no relevant information is available.'\n\n"
-                "Context: {context}"),
-                ("human", "Question: {question}")
-            ]
-        )
-        
-        prepare_prompt_template = RunnableLambda(lambda x: prompt_template.format_prompt(context=augmented_content, question=query))
-        
-        chain = prepare_prompt_template | llm | StrOutputParser()
-        print(f"\nAnswer: {chain.invoke({})}")
+        response = agent_executor.invoke({"input": query})
+        print(f"\nAnswer: {response}")
 
 if __name__ == "__main__":
     main()

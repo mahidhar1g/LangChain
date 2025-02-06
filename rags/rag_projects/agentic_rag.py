@@ -28,7 +28,7 @@ def load_pdf(folder_path):
     full_text = ""
     try:
         for file_name in os.listdir(folder_path):
-            if file_name.endswith("G.pdf"):
+            if file_name.endswith(".pdf"):
                 file_path = os.path.join(folder_path, file_name)
                 loader = PyPDFLoader(file_path)
                 documents.extend(loader.load())

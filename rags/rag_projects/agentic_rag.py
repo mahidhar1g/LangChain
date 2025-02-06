@@ -58,7 +58,6 @@ chunks = []
 for i, doc in enumerate(documents):
     current_page_text = doc.page_content
     current_page_metadata = doc.metadata
-    print(current_page_metadata)
     for chunk in raw_chunks:
         if chunk in current_page_text or chunk[:50] in current_page_text:
             if not chunk in current_page_text:

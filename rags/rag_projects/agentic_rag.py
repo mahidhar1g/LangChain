@@ -82,8 +82,3 @@ for i, doc in enumerate(documents):
                     }
                 )
 
-
-print(len(chunks))
-for i, chunk in enumerate(chunks):
-    print(f"Chunk {i+1} - {chunk}")
-    print("")

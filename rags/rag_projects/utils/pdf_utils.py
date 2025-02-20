@@ -26,6 +26,8 @@ def load_pdf(folder_path):
                 documents.extend(loader.load())
                 for doc in documents:
                     full_text += doc.page_content
+            else:
+                raise RuntimeError(f"Invalid file format. Only PDF files are supported.")
         return documents, full_text
     except Exception as e:
         raise RuntimeError(f"An error occurred while reading the PDF file: {e}")

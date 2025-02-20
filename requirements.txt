@@ -11,3 +11,4 @@ sentence-transformers
 fitz
 streamlit
 duckduckgo-search
+langchain-pinecone
